@@ -12,6 +12,7 @@ library(sjPlot)
 library(sjmisc)
 library(generics)
 library(dplyr)
+library(bestNormalize)
 library(viridis)
 library(RColorBrewer)
 library(tidyverse)
@@ -198,7 +199,7 @@ sum(is.na(p$syn_right_dist))
 
 
 ## Get all secondary correlations
-all_data = fread("/Users/pgr/Documents/Dissertation/Gender_analyses/All_data.csv")
+all_data = fread("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/All_data.csv")
 hist(all_data$lev_syn)
 hist(all_data$sem_syn)
 hist(all_data$lev_gen)
@@ -215,7 +216,7 @@ ggplot(data_long, aes(x = value)) +
   scale_fill_viridis(discrete = TRUE, option = "turbo") +
   geom_histogram(fill = "darkred", binwidth = 0.04, boundary = 0) +
   facet_grid(rows = vars(second), cols = vars(first)) +
-  scale_x_continuous(limits = c(-0.45, 0.45)) +
+  scale_x_continuous(limits = c(-0.45, 0.45), breaks=c(-0.25, 0, 0.25), labels=c("\u20130.25","0.00","0.25")) +
   scale_y_continuous(limits = c(0, 13)) +
   labs(x = "Correlation", y = "Number of languages") +
   theme(legend.position = "none") +
@@ -375,9 +376,9 @@ fwrite(all_df, "/Users/pgr/Documents/Dissertation/Gender_analyses/Same_length_re
 ## Getting significance values for each language
 
 # Load real and simulated correlations
-sim_cors = fread("/Users/pgr/Documents/Dissertation/Gender_analyses/Sim_cors.csv")
-sim_cors$langs = as.factor(sim_cors$langs)
-real_cors = fread("/Users/pgr/Documents/Dissertation/Gender_analyses/Real_cors.csv")
+cors = fread("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/Sim_cors.csv")
+cors$langs = as.factor(cors$langs)
+real = fread("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/Real_cors.csv")
 p_values = c()
 
 # Loop through each language, calculating the proportion of simulated correlations that are greater than or equal to the real one
@@ -392,19 +393,19 @@ significance = data.frame(langs = levels(sim_cors$langs), p_values = p_values)
 significance
 
 sum(significance$p_values < 0.05)
-fwrite(significance, "/Users/pgr/Documents/Dissertation/Gender_analyses/P_values.csv")
+fwrite(significance, "/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/P_values.csv")
 
 
 ## Plotting permutation results
 
 # Prep data for plotting
-all_data = fread("/Users/pgr/Documents/Dissertation/Gender_analyses/All_data.csv")
+all_data = fread("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/All_data.csv")
 cors$language <- all_data$languages[match(cors$langs, all_data$langs)]
 cors$family <- all_data$family[match(cors$langs, all_data$langs)]
 real$language <- all_data$languages[match(real$langs, all_data$langs)]
 cors = cors[order(cors$family)]
-real$y = 0
-p_values = fread("/Users/pgr/Documents/Dissertation/Gender_analyses/P_values.csv")
+real$y = 200
+p_values = fread("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/P_values.csv")
 real$p_values <- p_values$significance[match(real$langs, p_values$langs)]
 
 # Generate and save plot
@@ -422,9 +423,9 @@ ggplot(cors, aes(x = x)) +
                                         'Croatian', 'Slovenian', 'Serbian', 'German',
                                         'Dutch', 'Czech', 'Polish', 'Slovak')), ncol = 4)+
   labs(x = "Correlation between syntactic distance and gender sameness", y = "Number of simulations") +
-  scale_x_continuous(limits = c(-0.15, 0.15)) +
+  scale_x_continuous(limits = c(-0.15, 0.15), breaks=c(-0.1, 0.0, 0.1), labels=c("\u20130.1","0.0","0.1")) +
   #scale_y_continuous(limits = c(0, 3000)) +
-  geom_text(data = real, aes(label = p_values), size = 3.5, x = 0.10, y = 1500)
+  geom_text(data = real, aes(label = p_values), size = 3.5, x = 0.1, y = 1500)
 dev.off()
 
 
@@ -438,7 +439,6 @@ s = p %>% group_by(lang) %>% sample_n(10000)
 # OPTIONAL: Run regression on entire dataset rather than sample
 s = p
 rm(p)
-
 
 ## Language and family names
 all_data = fread("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/All_data.csv")
@@ -488,8 +488,7 @@ summary(s$sem_dist_bc)
 ggplot(s, aes(x = sem_dist_bc)) +
   geom_density(aes(group = lang, color = lang))
 
-
-## Exploring correlation between intercepts and slopes
+# Exploring correlation between intercepts and slopes
 ggplot(s, aes(x = syn_dist_bc, y = gender_sameness)) +
   geom_smooth(aes(group = language), method = "lm", se = FALSE)
 ggplot(s, aes(x = sem_dist_bc, y = gender_sameness)) +
@@ -501,6 +500,13 @@ ggplot(s, aes(x = lev_dist_bc, y = gender_sameness)) +
 
 ## Save allpairs as csv
 fwrite(s, "/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/Gender_pairs_transformed_sampled.csv")
+
+
+## Load allpairs
+s = fread("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/Gender_pairs_transformed_sampled.csv")
+s$language = as.factor(s$language)
+s$family = as.factor(s$family)
+s$genders = as.factor(s$genders)
 
 
 ## Models
@@ -554,6 +560,66 @@ DHARMa::plotResiduals(rs, form = s$sem_dist_bc, quantreg = T)
 DHARMa::plotResiduals(rs, form = s$lev_dist_bc, quantreg = T)
 
 
+## Plot results
+
+# Quick look
+plot(allEffects(m10))
+
+# Get predictions to do it manually
+syn = as.data.frame(predictorEffect("syn_dist_bc", m10, focal.levels=100))
+syn$effect = "syn_dist_bc"
+colnames(syn)[1] = "x"
+sem = as.data.frame(predictorEffect("sem_dist_bc", m10, focal.levels=100))
+sem$effect = "sem_dist_bc"
+colnames(sem)[1] = "x"
+lev = as.data.frame(predictorEffect("lev_dist_bc", m10, focal.levels=100))
+lev$effect = "lev_dist_bc"
+colnames(lev)[1] = "x"
+preds = rbind(syn, sem, lev)
+
+# Create long form of distances for rugs
+s_long = gather(s, effect, value, syn_dist_bc:sem_dist_bc, factor_key = TRUE)
+
+# Create labels for facets
+facet_labels = c(syn_dist_bc = "Syntactic", sem_dist_bc = "Semantic", lev_dist_bc = "Orthographic")
+
+# Plot and save
+tiff("gender_glmer_effects.tiff", units="in", width=10, height=4, res=300)
+ggplot(preds, aes(x = x)) +
+  geom_smooth(aes(color = effect, y = fit), method = "lm") +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = effect), alpha = 0.3) +
+  facet_grid(cols = vars(effect), labeller = as_labeller(facet_labels)) +
+  scale_color_manual(values = c("#06ffcf", "#00a384", "#004134")) +
+  scale_fill_manual(values = c("#06ffcf", "#00a384", "#004134")) +
+  labs(x = "Scaled distance", y = "Probability of gender sameness") +
+  coord_cartesian(xlim = c(-3.5, 3.5), ylim = c(0.15, 0.8)) +
+  scale_x_continuous(breaks=c(-2, 0, 2), labels=c("\u20132","0","2")) +
+  theme(legend.position = "none") +
+  geom_rug(data = s_long, aes(x = value), alpha = 0.005)
+dev.off()
+
+
+## Make data from which to predict
+newdata = expand.grid(lang = levels(s$lang), lev_dist_bc = seq(-5, 5, 0.2), sem_dist_bc = seq(-5, 5, 0.2), syn_dist_bc = seq(-5, 5, 0.2))
+all_data = fread("/Users/pgr/Documents/Dissertation/Gender_analyses/All_data.csv")
+newdata$family <- all_data$family[match(newdata$lang, all_data$langs)]
+newdata$family = as.factor(newdata$family)
+
+# Make preds
+newdata$preds = predict(m1, newdata, type = 'response')
+
+# Plot each effect for each language
+ggplot(newdata, aes(x = syn_dist_bc, y = preds)) +
+  geom_smooth(aes(color = lang), method = "lm", se = FALSE) +
+  scale_color_viridis(discrete = TRUE, option = "turbo")
+ggplot(newdata, aes(x = sem_dist_bc, y = preds)) +
+  geom_smooth(aes(color = lang), method = "lm", se = FALSE) +
+  scale_color_viridis(discrete = TRUE, option = "turbo")
+ggplot(newdata, aes(x = lev_dist_bc, y = preds)) +
+  geom_smooth(aes(color = lang), method = "lm", se = FALSE) +
+  scale_color_viridis(discrete = TRUE, option = "turbo")
+
+
 ## New model with number of genders
 m10 = glmer(gender_sameness ~ lev_dist_bc + sem_dist_bc + syn_dist_bc + genders +
              (1|family/language) + 
@@ -563,6 +629,7 @@ m10
 anova(m5, m10)
 # Save model
 saveRDS(m10, file = "/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/Model_w_genders.rds")
+m10 = readRDS("/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/Model_w_genders.rds")
 
 ## Comparison models
 
@@ -620,54 +687,8 @@ anova(m11, m12)
 saveRDS(m12, file = "/Users/pgr/Documents/Dissertation/syntactic_information_in_the_lexicon/Gender_analyses/Model_w_genders_&_interaction_comparison.rds")
 
 
-## Check residuals of our primary model
-rs = DHARMa::simulateResiduals(m10)
-plot(rs)
-DHARMa::plotResiduals(rs, form = s$syn_dist_bc, quantreg = T)
-DHARMa::plotResiduals(rs, form = s$sem_dist_bc, quantreg = T)
-DHARMa::plotResiduals(rs, form = s$lev_dist_bc, quantreg = T)
-
-
 ## Get confidence intervals of model
 confint(m10, method = "Wald")
-
-
-## Plot results
-
-# Quick look
-plot(allEffects(m10))
-
-# Get predictions to do it manually
-syn = as.data.frame(predictorEffect("syn_dist_bc", m10, focal.levels=100))
-syn$effect = "syn_dist_bc"
-colnames(syn)[1] = "x"
-sem = as.data.frame(predictorEffect("sem_dist_bc", m10, focal.levels=100))
-sem$effect = "sem_dist_bc"
-colnames(sem)[1] = "x"
-lev = as.data.frame(predictorEffect("lev_dist_bc", m10, focal.levels=100))
-lev$effect = "lev_dist_bc"
-colnames(lev)[1] = "x"
-preds = rbind(syn, sem, lev)
-
-# Create long form of distances for rugs
-s_long = gather(s, effect, value, syn_dist_bc:sem_dist_bc, factor_key = TRUE)
-
-# Create labels for facets
-facet_labels = c(syn_dist_bc = "Syntactic", sem_dist_bc = "Semantic", lev_dist_bc = "Orthographic")
-
-# Plot and save
-tiff("gender_glmer_effects.tiff", units="in", width=10, height=4, res=300)
-ggplot(preds, aes(x = x)) +
-  geom_smooth(aes(color = effect, y = fit), method = "lm") +
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = effect), alpha = 0.3) +
-  facet_grid(cols = vars(effect), labeller = as_labeller(facet_labels)) +
-  scale_color_manual(values = c("#06ffcf", "#00a384", "#004134")) +
-  scale_fill_manual(values = c("#06ffcf", "#00a384", "#004134")) +
-  labs(x = "Scaled distance", y = "Probability of gender sameness") +
-  coord_cartesian(xlim = c(-3.5, 3.5), ylim = c(0.15, 0.8)) +
-  theme(legend.position = "none") +
-  geom_rug(data = s_long, aes(x = value), alpha = 0.005)
-dev.off()
 
 
 ## Checking correlation between coefficients and corpus size
@@ -736,10 +757,12 @@ sum(is.na(p$syn_right_dist))
 
 
 
-### Checking Arabic (first language that missed the size cut-off)
+
+## Checking Arabic (first language that missed the size cut-off)
 arabic = fread("/Users/pgr/Documents/Dissertation/Python_scripts/UDT_gender_paired/UDT_gender_paired-ar.csv")
 plot(as.factor(arabic$gender_sameness), arabic$syn_dist)
 cor(arabic$lev_dist, arabic$gender_sameness)
+
 
 
 
@@ -757,6 +780,11 @@ span[(span$syn_dist < 0.1) & (span$sem_dist > 0.9),]
 # Far syntactically and close semantically
 span[(span$syn_dist > 0.5) & (span$sem_dist < 0.6),]
 # oro (gold, 98) vs medalla (medal, 72) [7 0.4961874 0.5304857]
+# censura (censorship) vs amenaza (threat)
+# embargo vs duda (doubt)
+# cabida (capacity/space) vs hueco (hole/opening)/cuenta (count)
+# doña vs. esposa
+# municipio (town/municipality) vs cantón (district)
 
 # Let's find other words to pair with oro
 oro = span[(span$lemma_x == "oro") | (span$lemma_y == "oro"),]
